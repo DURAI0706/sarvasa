@@ -1,0 +1,48 @@
+<!-- my_courses.html -->
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <!-- Your head content here -->
+    <title>My Courses</title>
+</head>
+
+<body>
+    <h1>My Courses</h1>
+
+    <!-- Joined Courses Section -->
+    <h2>Joined Courses</h2>
+    {% for course in joined_courses %}
+        <div class="course-container">
+            <h3>{{ course.course_name }}</h3>
+            <p>Created By: {{ course.created_by }}</p>
+            <p>Description: {{ course.description }}</p>
+            <!-- You can add more details as needed -->
+        </div>
+    {% endfor %}
+
+    <!-- Other Courses Section -->
+    <h2>Other Courses</h2>
+    {% for course in other_courses %}
+        <div class="course-container">
+            <h3>{{ course.name }}</h3>
+            <p>Department: {{ course.department }}</p>
+            <p>Created By: {{ course.createdBy }}</p>
+            <p>Description: {{ course.description }}</p>
+            {% if course.joined %}
+                <!-- If the user has already joined the course, display a message -->
+                <p>You have already joined this course.</p>
+            {% else %}
+                <!-- If the user has not joined the course, display the join button -->
+                <form method="post" action="/verify_join">
+                    <input type="hidden" name="enteredPassword" value="{{ course.password }}">
+                    <input type="hidden" name="courseName" value="{{ course.name }}">
+                    <button type="submit">Join Course</button>
+                </form>
+            {% endif %}
+        </div>
+    {% endfor %}
+</body>
+
+</html>

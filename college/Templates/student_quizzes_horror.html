@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quizzes for {{ course_name }}</title>
+    <!-- Add your CSS styles or link to an external stylesheet here -->
+</head>
+<body>
+
+<h1>Quizzes for {{ course_name }}</h1>
+
+{% if quizzes %}
+    <ul>
+        {% for quiz in quizzes %}
+            <li>
+                <h3>{{ quiz.quiz_name }}</h3>
+                <p>Timer: {{ quiz.timer }} minutes</p>
+                <p>Condition Marks: {{ quiz.condition_marks }}</p>
+                <p>Badges: {{ quiz.badges }}</p>
+            </li>
+        {% endfor %}
+    </ul>
+{% else %}
+    <p>No quizzes available for this course.</p>
+{% endif %}
+
+</body>
+</html>
