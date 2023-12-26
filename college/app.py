@@ -661,8 +661,10 @@ def see_quizzes(course_name):
     # Retrieve quizzes for the specified course from MongoDB
     course_quizzes = get_quizzes(course_name)
 
-    # Retrieve the recommendation result from the session
-    recommendation_result = session.get('recommendation_result')
+    # Retrieve the recommendation result for the user from the database
+    user_email = session.get('email') or session.get('student_email')
+    recommendation_data = recommendation_collection.find_one({'user_id': user_email})
+    recommendation_result = recommendation_data.get('recommendation') if recommendation_data else None
 
     # Check if the user has attended each quiz and categorize them
     completed_tests = []
@@ -682,12 +684,15 @@ def see_quizzes(course_name):
         if quiz_submission:
             # Check if the user's score is greater than the conditional marks
             if quiz_submission['marks'] >= quiz['condition_marks']:
-                completed_tests.append(quiz)
+                completed_tests.append({'quiz_name': quiz['quiz_name'], 'quiz_submission': quiz_submission})
             else:
-                non_completed_tests.append(quiz)
+                non_completed_tests.append({'quiz_name': quiz['quiz_name'], 'quiz_submission': quiz_submission})
         else:
             # User has not attended the quiz
-            non_completed_tests.append(quiz)
+            non_completed_tests.append({'quiz_name': quiz['quiz_name'], 'quiz_submission': None})
+
+    print("Completed Tests:", completed_tests)
+    print("Non-Completed Tests:", non_completed_tests)
 
     # Render the template based on the recommendation result
     if recommendation_result == 'based on above we recommend you horror theme to nourish and to grow':
@@ -700,6 +705,8 @@ def see_quizzes(course_name):
         return render_template('student_quizzes_fantasy.html', course_name=course_name, 
                                completed_tests=completed_tests, non_completed_tests=non_completed_tests)
 
+
+        
 @app.route('/see_assignments/<course_name>', methods=['GET'])
 def see_assignments(course_name):
 
@@ -711,6 +718,13 @@ def see_materials(course_name):
 
     return render_template(template_name, course_name=course_name, quizzes=course_quizzes)
 
+@app.route('/start_quiz/<course_name>/<quiz_name>', methods=['POST'])
+def start_quiz(course_name, quiz_name):
+    # Retrieve user email from the session
+    user_email = session.get('email') or session.get('student_email')
+    
+
+    return render_template('quiz_page.html', course_name=course_name, quiz_name=quiz_name, questions=quiz_questions)
 
     
 @app.route('/check_pin', methods=['POST'])
