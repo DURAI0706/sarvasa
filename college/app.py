@@ -652,47 +652,48 @@ def get_quizzes(course_name):
     quiz_collection = db['quiz']
     return list(quiz_collection.find({'course_name': course_name}))
 
-def get_quizzes(course_name):
-    quiz_collection = db['quiz']
-    return list(quiz_collection.find({'course_name': course_name}))
+
+def get_completed_quizzes(user_email, course_name):
+    completed_quiz_collection = db['completed_quiz']
+    return list(completed_quiz_collection.find({
+        'user_email': user_email,
+        'course_name': course_name
+    }))
+
+def get_recommendation_result(user_email):
+    recommendation_data = recommendation_collection.find_one({'user_id': user_email})
+    return recommendation_data.get('recommendation') if recommendation_data else None
 
 @app.route('/see_quizzes/<course_name>', methods=['GET'])
 def see_quizzes(course_name):
     # Retrieve quizzes for the specified course from MongoDB
     course_quizzes = get_quizzes(course_name)
 
-    # Retrieve the recommendation result for the user from the database
-    user_email = session.get('email') or session.get('student_email')
-    recommendation_data = recommendation_collection.find_one({'user_id': user_email})
-    recommendation_result = recommendation_data.get('recommendation') if recommendation_data else None
-
-    # Check if the user has attended each quiz and categorize them
-    completed_tests = []
-    non_completed_tests = []
-
     # Retrieve user email from the session
-    user_email = session.get('email') or session.get('student_email')
+    if 'email' in session and 'student_email' in session:
+        # Both emails are present, handle accordingly
+        email = session['email']
+        student_email = session['student_email']
+        # Use one of them based on your logic
+        user_email = email  # For example, use 'email'
+    elif 'email' in session:
+        # Retrieve the user email from the session
+        user_email = session['email']
+    elif 'student_email' in session:
+        # Retrieve the student email from the session
+        user_email = session['student_email']
+    else:
+        # Redirect to login if neither 'email' nor 'student_email' is in the session
+        return redirect('/role')
 
-    for quiz in course_quizzes:
-        # Check if the user has submitted a quiz
-        quiz_submission = student_test_collection.find_one({
-            'user_email': user_email,
-            'course_name': course_name,
-            'quiz_name': quiz['quiz_name']
-        })
+    # Get completed quizzes
+    completed_tests = get_completed_quizzes(user_email, course_name)
 
-        if quiz_submission:
-            # Check if the user's score is greater than the conditional marks
-            if quiz_submission['marks'] >= quiz['condition_marks']:
-                completed_tests.append({'quiz_name': quiz['quiz_name'], 'quiz_submission': quiz_submission})
-            else:
-                non_completed_tests.append({'quiz_name': quiz['quiz_name'], 'quiz_submission': quiz_submission})
-        else:
-            # User has not attended the quiz
-            non_completed_tests.append({'quiz_name': quiz['quiz_name'], 'quiz_submission': None})
+    # Identify non-completed quizzes
+    non_completed_tests = [quiz for quiz in course_quizzes if quiz not in completed_tests]
 
-    print("Completed Tests:", completed_tests)
-    print("Non-Completed Tests:", non_completed_tests)
+    # Get recommendation result
+    recommendation_result = get_recommendation_result(user_email)
 
     # Render the template based on the recommendation result
     if recommendation_result == 'based on above we recommend you horror theme to nourish and to grow':
@@ -1167,6 +1168,69 @@ def submit_assignment():
 
     # Render the form for submitting an assignment with success message if available
     return render_template('submit_assignment.html', success_message=success_message)
+@app.route('/give_quiz/<course_name>', methods=['GET', 'POST'])
+def give_quiz(course_name):
+    if request.method == 'POST':
+        # Try to get course_name from the URL parameters
+        submitted_course_name = request.args.get('course_name')
+
+        # If it's not present, try to get it from the form data
+        if submitted_course_name is None:
+            submitted_course_name = request.form.get('course_Name')
+
+        # Your existing code for handling the form submission
+        print("Form submitted successfully")
+        quiz_name = request.form['quizName']
+        quiz_data = {
+            "course_name": submitted_course_name,
+            "quiz_name": quiz_name,
+            "timer": int(request.form['timer']),
+            "condition_marks": int(request.form['mark']),
+            "badges": request.form['badges'],
+            "questions": []
+        }
+
+        # Extract dynamic question details from form data
+        question_keys = [key for key in request.form.keys() if key.startswith('question_')]
+        for key in question_keys:
+            question_index = key.split('_')[-1]
+            question = {
+                "question": request.form[f'question_{question_index}'],
+                "choices": request.form.getlist(f'choices_{question_index}[]'),
+                "correct_answer": request.form[f'correctAnswer_{question_index}'],
+                "hint": request.form[f'hint_{question_index}'],
+                "type": request.form[f'type_{question_index}']
+            }
+            quiz_data["questions"].append(question)
+
+            print(f'Question {question_index}: {question}')
+
+        # Insert quiz data into MongoDB collection
+        result = quiz_collection.insert_one(quiz_data)
+
+        if result.inserted_id:
+            print("Quiz successfully inserted")
+        else:
+            print("Failed to insert the quiz")
+
+        # Redirect to completed.html
+        return redirect(url_for('completed'))
+
+    return render_template('give_quiz.html')
+
+@app.route('/completed')
+def completed():
+    return render_template('completed.html')
+    
+
+
+# Route for viewing the assignment
+@app.route('/give_assignment/<course_name>')
+def give_assignment(course_name):
+    # Implement logic to handle giving an assignment
+    return f"Give Assignment for course: {course_name}"
+
+
 
 if __name__ == '__main__':
     app.run()
