@@ -290,17 +290,21 @@
   <title>Show Course Attributes</title>
 </head>
 <body>
-    <div class="container">
-        <main>
-            <div id="mycourses">
-                <h1>Course Attributes</h1>
-                <div class="addcourse_wrapper">
+  <div class="container">
+      <main>
+          <div id="mycourses">
+              <h1>Course Attributes</h1>
+              <div class="addcourse_wrapper">
                   <a class="addBtn" href="{{ url_for('view_quiz', course_name=course.name) }}">View Quiz</a>
                   <br><br>
                   <a class="addBtn" href="{{ url_for('show_quiz', course_name=course.name) }}">View Assignment</a>
-                </div>
-            </div>
-        </main>
-    </div>
+                  <br><br>
+                  <a class="addBtn" href="{{ url_for('give_quiz', course_name=course.name) }}">Give Quiz</a>
+                  <br><br>
+                  <a class="addBtn" href="{{ url_for('give_assignment', course_name=course.name) }}">Give Assignment</a>
+              </div>
+          </div>
+      </main>
+  </div>
 </body>
 </html>
