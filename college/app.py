@@ -51,7 +51,10 @@ mycourses_collection=db['mycourses']
 quiz_collection=db['quiz']
 assignment_collection=db['assignment']
 student_test_collection= db['quizsubmission']
-app.permanent_session_lifetime = timedelta(minutes=30)
+material_collection= db['material_collection']
+slow_collection = db['slow_learners']
+students_collection = db['students']
+new_collection=db['new_users']
 # Routes
 
 
@@ -116,7 +119,7 @@ def student_register():
 
         # Insert user data into the database
         result = student_collection.insert_one(user_data)
-
+        new_d=new_collection.insert_one(user_data)
         # Check if registration is successful
                 # Check if registration is successful
         if result.inserted_id:
@@ -652,7 +655,6 @@ def get_quizzes(course_name):
     quiz_collection = db['quiz']
     return list(quiz_collection.find({'course_name': course_name}))
 
-
 def get_completed_quizzes(user_email, course_name):
     completed_quiz_collection = db['completed_quiz']
     return list(completed_quiz_collection.find({
@@ -690,9 +692,9 @@ def see_quizzes(course_name):
     completed_tests = get_completed_quizzes(user_email, course_name)
 
     # Identify non-completed quizzes
-    non_completed_tests = [quiz for quiz in course_quizzes if quiz not in completed_tests]
+    non_completed_tests = [quiz for quiz in course_quizzes if quiz['quiz_name'] not in [completed_quiz['quiz_name'] for completed_quiz in completed_tests]]
 
-    # Get recommendation result
+    # Render the template based on the recommendation result
     recommendation_result = get_recommendation_result(user_email)
 
     # Render the template based on the recommendation result
@@ -706,27 +708,329 @@ def see_quizzes(course_name):
         return render_template('student_quizzes_fantasy.html', course_name=course_name, 
                                completed_tests=completed_tests, non_completed_tests=non_completed_tests)
 
+def get_user_recommendation_result(user_email):
+    recommendation_data = recommendation_collection.find_one({'user_id': user_email})
+    return recommendation_data.get('recommendation') if recommendation_data else None
 
+
+quiz_start_time = datetime.now()  # Initialize quiz_start_time here
+
+@app.route('/start_quiz/<course_name>/<quiz_name>', methods=['GET', 'POST'])
+def start_quiz(course_name, quiz_name):
+    global quiz_start_time
+
+    # Retrieve user email from the session (you can replace it with your actual user session logic)
+    user_email = session.get('email') or session.get('student_email')
+
+    # Fetch the recommendation result
+    recommendation_result = get_user_recommendation_result(user_email)
+
+    if recommendation_result == 'based on above we recommend you horror theme to nourish and to grow':
+        template_name = 'enter_quizzes_horror.html'
+    elif recommendation_result == 'based on above we recommend you nature content theme to nourish and to grow':
+        template_name = 'enter_quizzes_nature.html'
+    else:
+        template_name = 'enter_quizzes_fantasy.html'
+
+    # Fetch quiz data based on course_name and quiz_name
+    quiz_collection = db['quiz']
+    quiz = quiz_collection.find_one({'course_name': course_name, 'quiz_name': quiz_name})
+    if not quiz:
+        # Handle the case where the quiz is not found
+        return render_template('quiz_not_found.html')
+
+    student_collection=db['student']
+    new_collection=db['new_users']
+    new_datas= new_collection.find_one({'email':user_email})
+    student_data=student_collection.find_one({'email':user_email})
+    nigga=student_collection.find_one({'email':user_email})
+    # Fetch student data
+    students_collection = db['students']
+    students_data = students_collection.find_one({'email': user_email})
+    slow_collection = db['slow_learners']
+    slow_data = slow_collection.find_one({'email': user_email})
+    
+    # Extract relevant information
+    total_coins = student_data.get('total_coins', 0)
+    total_keys = student_data.get('total_keys', 0)
+    total_heart = student_data.get('total_heart', 0)
+
+    if request.method == 'POST':
+        # User submitted the quiz, process the submission
+        submission_time = datetime.now()
+        time_taken = submission_time - quiz_start_time
+
+        total_marks = 0
+        incorrect_marks = 0
+        total_questions = len(quiz['questions'])
+        type_count = {}  # Dictionary to count the types of questions where selected choice is not equal to correct answer
+
+        for index, question in enumerate(quiz['questions']):
+            answer_key = f'answer_{index}'
+            selected_choice = request.form.get(answer_key)
+
+            # Check if the selected choice is equal to the correct answer
+            if selected_choice == question['correct_answer']:
+                total_marks += 1
+            else:
+                # Count the type of question
+                question_type = question['type']
+                type_count[question_type] = type_count.get(question_type, 0) + 1
+                incorrect_marks += 1
+
+        # Find the highest incorrect type
+        highest_incorrect_type = max(type_count, key=type_count.get, default=None)
+
+        # Calculate ratios
+        total_time_taken_seconds = time_taken.total_seconds()
+        correct_ratio = total_marks / total_questions
+        incorrect_ratio = incorrect_marks / total_questions
         
+        print("email:",user_email)
+        print('totalmarks:',total_marks)
+        print('total time taken:',total_time_taken_seconds)
+        print('correct_ratio',correct_ratio)
+        print('incorrect_ratio',incorrect_ratio)
+        
+        
+        if slow_data is None and total_marks < quiz['condition_marks']:
+            # Mark the user as a slow learner (but don't insert details into the database)
+            new_collection.delete_one({'email': user_email})
+            user_type = 'slow learner'
+            slow_collection.insert_one({
+                'email': user_email,
+                'learner_type': user_type,
+                'correct_ratio': correct_ratio,
+                'total_marks': total_marks,
+                'incorrect_type': highest_incorrect_type,
+                'total_time_taken':total_time_taken_seconds,
+                'course_name': course_name,
+                'quiz_name': quiz_name,
+                'submission_date': submission_time.strftime('%Y-%m-%d')
+            })
+            if recommendation_result == 'based on above we recommend you horror theme to nourish and to grow':
+                return redirect(url_for('retry_horror',course_name=course_name, quiz_name=quiz_name))
+            elif recommendation_result == 'based on above we recommend you nature content theme to nourish and to grow':
+                return redirect(url_for('retry_nature',course_name=course_name, quiz_name=quiz_name))
+            else:
+                return redirect(url_for('retry_fantasy',course_name=course_name, quiz_name=quiz_name))
+            
+        elif slow_data is not None and total_marks < quiz['condition_marks']:
+    # Update the existing data in slow_collection
+            slow_collection.update_one(
+        {'email': user_email},
+        {
+            '$set': {
+                'learner_type': 'slow learner',
+                'correct_ratio': correct_ratio,
+                'total_marks': total_marks,
+                'incorrect_type': highest_incorrect_type,
+                'course_name': course_name,
+                'quiz_name': quiz_name,
+                'total_time_taken':total_time_taken_seconds,
+                'submission_date': submission_time.strftime('%Y-%m-%d')
+            }
+        }
+    )
+            if recommendation_result == 'based on above we recommend you horror theme to nourish and to grow':
+                return redirect(url_for('retry_horror',course_name=course_name, quiz_name=quiz_name))
+            elif recommendation_result == 'based on above we recommend you nature content theme to nourish and to grow':
+                return redirect(url_for('retry_nature',course_name=course_name, quiz_name=quiz_name))
+            else:
+                return redirect(url_for('retry_fantasy',course_name=course_name, quiz_name=quiz_name))
+            
+            # Remove his all data from slow collection and insert into students collection
+            
+        
+        elif student_data is not None and total_marks > quiz['condition_marks']:
+            # Remove his all data from slow collection and insert into students collection
+            slow_collection.delete_one({'email': user_email})
+           
+            if correct_ratio > 0.88:
+                user_type = 'quick Learner'
+            elif 0.82 <= correct_ratio <= 0.88:
+                user_type = 'average Learner'
+            else:
+                user_type = 'slow Learner'
+           
+            students_collection.insert_one({
+                'email': user_email,
+                'learning_level': user_type,
+                'correct_ratio': correct_ratio,
+                'total_marks': total_marks,
+                'highest_incorrect_type': highest_incorrect_type,
+                'total_time_taken':total_time_taken_seconds,
+                'course_name': course_name,
+                'quiz_name': quiz_name,
+                'submission_date': submission_time.strftime('%Y-%m-%d')
+            })    
+        
+        
+        else:
+            new_collection.delete_one({'email': user_email})
+            # Mark the user in the student collection
+            students_collection.insert_one({
+                'email': user_email,
+                'learning_level': user_type,
+                'correct_ratio': correct_ratio,
+                'total_marks': total_marks,
+                'highest_incorrect_type': highest_incorrect_type,
+                'total_time_taken':total_time_taken_seconds,
+                'course_name': course_name,
+                'quiz_name': quiz_name,
+                'submission_date': submission_time.strftime('%Y-%m-%d')
+            })
+
+        # Update the total_coins, total_hearts, and total_keys in the student's collection
+        student_collection.update_one(
+            {'email': user_email},
+            {'$set': {'total_coins': total_coins,
+                      'total_heart': total_heart,
+                      'total_keys': total_keys}}
+        )
+
+        # Redirect to quiz_result outside of the for loop
+        return redirect(url_for('quiz_result', course_name=course_name, quiz_name=quiz_name))
+
+    # Set the quiz start time if it is not set
+    if quiz_start_time is None:
+        quiz_start_time = datetime.now()
+
+    # Render the template with quiz questions and other necessary data
+    return render_template(template_name, course_name=course_name, quiz_name=quiz_name,
+                           questions=quiz['questions'], timer=quiz['timer'],
+                           total_coins=total_coins, total_keys=total_keys, total_heart=total_heart)
+    
+# Implement get_user_recommendation_result and other functions
+@app.route('/quiz_result/<course_name>/<quiz_name>')
+def quiz_result(course_name, quiz_name):
+    # Placeholder for quiz result logic
+    # You can add your own logic to calculate and display quiz results
+
+    # For now, let's just render a template with quiz results
+    return render_template('quiz_result.html', course_name=course_name, quiz_name=quiz_name)
+
+
+
 @app.route('/see_assignments/<course_name>', methods=['GET'])
 def see_assignments(course_name):
 
-    return render_template(template_name, course_name=course_name, quizzes=course_quizzes)
+    return render_template(template_name, course_name=course_name,)
 
 
 @app.route('/see_materials/<course_name>', methods=['GET'])
 def see_materials(course_name):
+    if 'email' in session and 'student_email' in session:
+        email = session['email']
+        student_email = session['student_email']
+        user_email = email if email else student_email
+    elif 'email' in session:
+        user_email = session['email']
+    elif 'student_email' in session:
+        user_email = session['student_email']
+    else:
+        return redirect('/role')
 
-    return render_template(template_name, course_name=course_name, quizzes=course_quizzes)
+    # Get quizzes and recommendation
+    course_quizzes = list(quiz_collection.find({'course_name': course_name}))
+    recommendation_data = recommendation_collection.find_one({'user_id': user_email})
+    recommendation_result = recommendation_data.get('recommendation') if recommendation_data else None
 
-@app.route('/start_quiz/<course_name>/<quiz_name>', methods=['POST'])
-def start_quiz(course_name, quiz_name):
-    # Retrieve user email from the session
-    user_email = session.get('email') or session.get('student_email')
-    
+    # Render the template based on the recommendation result
+    if recommendation_result == 'based on above we recommend you horror theme to nourish and to grow':
+        return render_template('student_quiz_materials_horror.html', course_name=course_name, quizzes=course_quizzes)
+    elif recommendation_result == 'based on above we recommend you nature content theme to nourish and to grow':
+        return render_template('student_quiz_materials_nature.html', course_name=course_name, quizzes=course_quizzes)
+    else:
+        return render_template('student_quiz_materials_fantasy.html', course_name=course_name, quizzes=course_quizzes)
 
-    return render_template('quiz_page.html', course_name=course_name, quiz_name=quiz_name, questions=quiz_questions)
 
+@app.route('/view_materials/<course_name>/<quiz_name>', methods=['GET'])
+def view_materials(course_name, quiz_name):
+    if 'email' in session and 'student_email' in session:
+        email = session['email']
+        student_email = session['student_email']
+        user_email = email if email else student_email
+    elif 'email' in session:
+        user_email = session['email']
+    elif 'student_email' in session:
+        user_email = session['student_email']
+    else:
+        return redirect('/role')
+
+    # Check if the user_email is present in slow_collection
+    slow_data = slow_collection.find_one({'email': user_email})
+    student_data = students_collection.find_one({'email': user_email})
+    news=new_collection.find_one({'email': user_email})
+    if slow_data:
+        # User is a slow learner, show slow learner materials
+        material_data = material_collection.find_one({'course_name': course_name, 'quiz_name': quiz_name})
+        print(f"Material Data: {material_data}")  # Add this line for debugging
+        learning_level = slow_data['learner_type']
+        recommendation_data = recommendation_collection.find_one({'user_id': user_email})
+        recommendation_result = recommendation_data.get('recommendation') if recommendation_data else None
+
+        if recommendation_result == 'based on above we recommend you horror theme to nourish and to grow':
+            return render_template('view_materials_quiz_horror.html', course_name=course_name, quiz_name=quiz_name,
+                                   materials=material_data, learning_level=learning_level)
+
+        elif recommendation_result == 'based on above we recommend you nature content theme to nourish and to grow':
+            return render_template('view_materials_quiz_nature.html', course_name=course_name, quiz_name=quiz_name,
+                                   materials=material_data, learning_level=learning_level)
+
+        else:
+            return render_template('view_materials_quiz_fantasy.html', course_name=course_name, quiz_name=quiz_name,
+                                   materials=material_data, learning_level=learning_level)
+    elif student_data:
+        # Check in students_collection for learning_level
+        student_data = students_collection.find_one({'email': user_email})
+        learning_level = student_data['learning_level']
+        recommendation_data = recommendation_collection.find_one({'user_id': user_email})
+        recommendation_result = recommendation_data.get('recommendation') if recommendation_data else None
+
+        # Fetch materials based on course name and quiz name
+        material_data = material_collection.find_one({'course_name': course_name, 'quiz_name': quiz_name})
+        print(f"Material Data for students: {material_data}")  # Add this line for debugging
+
+        if material_data:
+            # Render the template based on the recommendation result
+            if recommendation_result == 'based on above we recommend you horror theme to nourish and to grow':
+                return render_template('view_materials_quiz_horror.html', course_name=course_name, quiz_name=quiz_name,
+                                       materials=material_data, learning_level=learning_level)
+            elif recommendation_result == 'based on above we recommend you nature content theme to nourish and to grow':
+                return render_template('view_materials_quiz_nature.html', course_name=course_name, quiz_name=quiz_name,
+                                       materials=material_data, learning_level=learning_level)
+            else:
+                return render_template('view_materials_quiz_fantasy.html', course_name=course_name, quiz_name=quiz_name,
+                                       materials=material_data, learning_level=learning_level)
+    elif news:
+        material_data = material_collection.find_one({'course_name': course_name, 'quiz_name': quiz_name})
+        print(f"Material Data for students: {material_data}")  # Add this line for debugging
+        learning_level='average learner'
+        recommendation_data = recommendation_collection.find_one({'user_id': user_email})
+        recommendation_result = recommendation_data.get('recommendation') if recommendation_data else None
+        if material_data:
+            # Render the template based on the recommendation result
+            if recommendation_result == 'based on above we recommend you horror theme to nourish and to grow':
+                return render_template('view_materials_quiz_horror.html', course_name=course_name, quiz_name=quiz_name,
+                                       materials=material_data, learning_level=learning_level)
+            elif recommendation_result == 'based on above we recommend you nature content theme to nourish and to grow':
+                return render_template('view_materials_quiz_nature.html', course_name=course_name, quiz_name=quiz_name,
+                                       materials=material_data, learning_level=learning_level)
+            else:
+                return render_template('view_materials_quiz_fantasy.html', course_name=course_name, quiz_name=quiz_name,
+                                       materials=material_data, learning_level=learning_level)
+@app.route('/retry_horror/<course_name>/<quiz_name>')
+def retry_horror(course_name, quiz_name):
+    return render_template('retry_horror.html', course_name=course_name, quiz_name=quiz_name)
+
+@app.route('/retry_horror/<course_name>/<quiz_name>')
+def retry_nature(course_name, quiz_name):
+    return render_template('retry_nature.html', course_name=course_name, quiz_name=quiz_name)
+
+@app.route('/retry_horror/<course_name>/<quiz_name>')
+def retry_fantasy(course_name, quiz_name):
+    return render_template('retry_fantasy.html',course_name=course_name, quiz_name=quiz_name)        
     
 @app.route('/check_pin', methods=['POST'])
 def check_pin():
@@ -1168,6 +1472,46 @@ def submit_assignment():
 
     # Render the form for submitting an assignment with success message if available
     return render_template('submit_assignment.html', success_message=success_message)
+
+@app.route('/submit_materials', methods=['GET', 'POST'])
+def submit_materials():
+    success_message = None
+    courses = []
+    quizzes = []
+    if 'email_id' in session or 'teacher_email' in session or 'name' in session or 'quiz_name' in session:
+        emails_list = [session.get('email_id'), session.get('teacher_email')]
+        name = session.get('name')
+        quiz_name = session.get('quiz_name')
+
+        for teacher_email in emails_list:
+            if teacher_email:
+                teacher_data = teacher_collection.find_one({'email_id': teacher_email})
+                name = session.get('name')
+                quiz_name = session.get('quiz_name')
+                    
+        if request.method == 'POST':
+            course_name = name
+            quiz_names =quiz_name
+            slow_learner_material = request.form.get('slowLearnerMaterial')
+            topper_material = request.form.get('topperMaterial')
+            average_learner_material = request.form.get('averageLearnerMaterial')
+            material_data = {
+                "course_name": course_name,
+                "quiz_name": quiz_names,
+                "slow_learner_material": slow_learner_material,
+                "topper_material": topper_material,
+                "average_learner_material": average_learner_material
+            }
+            result = material_collection.insert_one(material_data)
+            if result.inserted_id:
+                success_message = 'Materials successfully assigned'
+            else:
+                success_message = 'Failed to assign materials'
+                
+    return render_template('submit_materials.html', success_message=success_message)
+
+
+
 @app.route('/give_quiz/<course_name>', methods=['GET', 'POST'])
 def give_quiz(course_name):
     if request.method == 'POST':
