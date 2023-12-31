@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>horror Materials</title>
+</head>
+<body>
+    <h1>{{ course_name }} - {{ quiz_name }} - horror Materials</h1>
+
+    <h2>Recommendation: horror Content Theme</h2>
+
+    {% if learning_level == 'quick learner' %}
+    <p>Quick Learner Material: {{ materials.topper_material }}</p>
+    {% elif learning_level == 'average learner' %}
+        <p>Average Learner Material: {{ materials.average_learner_material }}</p>
+    {% elif learning_level == 'slow learner' %}
+        <p>Slow Learner Material: {{ materials.slow_learner_material }}</p>
+    {% endif %}
+
+</body>
+</html>

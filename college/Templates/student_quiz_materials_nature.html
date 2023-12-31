@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nature Quizzes</title>
+</head>
+<body>
+    <h1>{{ course_name }} - Nature Quizzes</h1>
+    <h2>Recommendation: Nature Content Theme</h2>
+
+    <ul>
+        {% for quiz in quizzes %}
+            <li>
+                <a href="{{ url_for('view_materials', course_name=course_name, quiz_name=quiz.quiz_name) }}">
+                    {{ quiz.quiz_name }}
+                </a>
+            </li>
+        {% endfor %}
+    </ul>
+</body>
+</html>

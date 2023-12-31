@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ quiz_name }} Quiz</title>
+    <style>
+        /* Add your existing styles here */
+        .highlight {
+            background-color: #aaffaa; /* Light green for both options */
+        }
+    </style>
+    <script>
+        // JavaScript for handling dynamic behavior
+        let currentQuestion = 0;
+        let totalQuestions = {{ questions|length }};
+        let timerValue = {{ timer }} * 60;  // Convert minutes to seconds
+
+        function showQuestion(questionNumber) {
+            document.getElementById(`question-${currentQuestion}`).style.display = 'none';
+            document.getElementById(`question-${questionNumber}`).style.display = 'block';
+            currentQuestion = questionNumber;
+        }
+
+        function showNextQuestion() {
+            if (currentQuestion < totalQuestions - 1) {
+                showQuestion(currentQuestion + 1);
+            }
+        }
+
+        function showPreviousQuestion() {
+            if (currentQuestion > 0) {
+                showQuestion(currentQuestion - 1);
+            }
+        }
+
+        function startTimer() {
+            const timerInterval = setInterval(function () {
+                if (timerValue <= 0) {
+                    clearInterval(timerInterval);
+                    // Optionally, you can submit the quiz automatically when the timer reaches 0
+                    document.getElementById('quiz-form').submit();
+                } else {
+                    timerValue--;
+                    document.getElementById('timer-value').innerText = Math.floor(timerValue / 60) + ':' + (timerValue % 60);
+                }
+            }, 1000);
+        }
+
+        function useFiftyFifty() {
+            // Add logic for 50:50
+            // Check if there are enough coins
+            const coinsInput = document.getElementById('total_coins');
+            if (coinsInput && parseInt(coinsInput.value, 10) >= 50) {
+                // Reduce coins
+                coinsInput.value = parseInt(coinsInput.value, 10) - 50;
+
+                // Add logic to randomly highlight one correct and one incorrect option
+                const options = document.querySelectorAll(`input[name="answer_${currentQuestion}"]`);
+                const correctIndex = [...options].findIndex(option => option.value === "{{ correct_choice }}");
+
+                // Create a list of possible answers indices
+                const possibleAnswersIndices = [...Array(options.length).keys()];
+                possibleAnswersIndices.splice(correctIndex, 1);  // Remove correct answer index
+
+                // Randomly highlight one incorrect option
+                const randomIncorrectIndex = possibleAnswersIndices[Math.floor(Math.random() * possibleAnswersIndices.length)];
+
+                // Highlight both the correct and one incorrect option
+                options[correctIndex].classList.add('highlight');
+                options[randomIncorrectIndex].classList.add('highlight');
+
+                // Highlight parent element if it exists
+                if (options[correctIndex].parentNode) {
+                    options[correctIndex].parentNode.classList.add('highlight');
+                }
+                if (options[randomIncorrectIndex].parentNode) {
+                    options[randomIncorrectIndex].parentNode.classList.add('highlight');
+                }
+            } else {
+                // Show insufficient coins message
+                alert("Insufficient coins for 50:50!");
+                document.querySelector('button[data-action="fifty_fifty"]').disabled = true;
+            }
+        }
+
+        function useHint() {
+            const keysInput = document.getElementById('total_keys');
+    
+            // Check if there are enough keys
+            if (keysInput && parseInt(keysInput.value, 10) >= 5) {
+                // Reduce keys
+                keysInput.value = parseInt(keysInput.value, 10) - 5;
+
+                // Add logic to display the hint
+                alert("Hint: {{ hint_text }}");
+            } else {
+                // Show insufficient keys message
+                alert("Insufficient keys for hint!");
+                document.querySelector('button[data-action="hint"]').disabled = true;
+            }
+        }
+
+        function showAnswer() {
+            const heartsInput = document.getElementById('total_hearts');
+    
+            // Check if there are enough hearts
+            if (heartsInput && parseInt(heartsInput.value, 10) >= 2) {
+                // Reduce hearts
+                heartsInput.value = parseInt(heartsInput.value, 10) - 2;
+
+                // Add logic to display the correct answer
+                alert("Correct Answer: {{ correct_choice }}");
+            } else {
+                // Show insufficient hearts message
+                alert("Insufficient hearts to show the answer!");
+                document.querySelector('button[data-action="show_answer"]').disabled = true;
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            showQuestion(currentQuestion);
+            startTimer();
+        });
+    </script>
+</head>
+<body>
+    <h1>{{ course_name }} - {{ quiz_name }} Quiz</h1>
+    <div id="timer">Timer: <span id="timer-value">{{ timer }}:00</span></div>
+
+    <form id="quiz-form" method="POST" action="{{ url_for('start_quiz', course_name=course_name, quiz_name=quiz_name) }}">
+        {% for question in questions %}
+            <div id="question-{{ loop.index0 }}" style="display: none;">
+                <p>{{ question.question }}</p>
+                {% for choice in question.choices %}
+                    <input type="radio" name="answer_{{ loop.index0 }}" value="{{ choice }}">
+                    <label>{{ choice }}</label><br>
+                {% endfor %}
+                <br>
+            </div>
+        {% endfor %}
+
+        <button type="button" onclick="showPreviousQuestion()">Previous</button>
+        <button type="button" onclick="showNextQuestion()">Next</button>
+        <button type="button" onclick="useFiftyFifty()" data-action="fifty_fifty">50:50</button>
+        <button type="button" onclick="useHint()" data-action="hint">Hint</button>
+        <button type="button" onclick="showAnswer()" data-action="show_answer">Show Answer</button>
+        <!-- Add similar buttons for 50:50 and hints -->
+
+        <button type="submit">Submit</button>
+    </form>
+
+    <!-- Add display of total hearts, keys, coins, etc. -->
+    <div>Total Hearts: {{ total_hearts }}</div>
+    <div>Total Keys: {{ total_keys }}</div>
+    <div>Total Coins: {{ total_coins }}</div>
+
+    <input type="hidden" id="total_hearts" value="{{ total_hearts }}">
+    <input type="hidden" id="total_keys" value="{{ total_keys }}">
+    <input type="hidden" id="total_coins" value="{{ total_coins }}">
+
+    <script>
+        // Additional JavaScript logic if needed
+    </script>
+</body>
+</html>

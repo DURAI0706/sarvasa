@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Retry Page (Horror)</title>
+</head>
+<body>
+    <h1>Retry Page</h1>
+    <p>Sorry, you have failed. Please read the materials based on the Horror theme to improve.</p>
+
+    <!-- Add a button to go to the view_materials route -->
+    <a href="{{ url_for('view_materials', course_name=course_name, quiz_name=quiz_name) }}">
+        <button>Go to Materials (Horror)</button>
+    </a>
+</body>
+</html>

@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quizzes - {{ course_name }}</title>
+    <!-- Add your CSS styles or link to an external stylesheet here -->
+</head>
+<body>
+
+<h1>Quizzes for {{ course_name }}</h1>
+
+<!-- Completed Quizzes Section -->
+<h2>Completed Quizzes</h2>
+<ul>
+    {% for quiz in completed_tests %}
+        <li>
+            {{ quiz.quiz_name }} - {{ quiz.marks }} marks
+            (Conditional Marks: {{ quiz.condition_marks }}, Timer: {{ quiz.timer }} minutes)
+        </li>
+    {% endfor %}
+</ul>
+
+<!-- Non-Completed Quizzes Section -->
+<h2>Non-Completed Quizzes</h2>
+<ul>
+    {% for quiz in non_completed_tests %}
+        <li>
+            <a href="{{ url_for('start_quiz', course_name=course_name, quiz_name=quiz.quiz_name) }}">
+                {{ quiz.quiz_name }} - (Conditional Marks: {{ quiz.condition_marks }}, Timer: {{ quiz.timer }} minutes)
+            </a>
+        </li>
+    {% endfor %}
+</ul>
+
+</body>
+</html>
